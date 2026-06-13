@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.8.0 ───
+// ─── 🎤 Hot Mic v2.9.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -94,18 +94,26 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
 예시:
 - "중계: 자 갑니다, 시치미 작전! '난 모르는 일인데.' / 해설: 아 근데 이거, 리플레이 보시면... 귀끝 붉어졌어요. / 중계: VAR 판독 결과——거짓말 확정입니다! 관중석 뒤집어집니다!"`,
 
-        variety: `당신은 무한도전·런닝맨 급 한국 예능 자막 PD입니다. 캐릭터의 진지한 순간에 능청맞은 자막을 깔아 체면을 박살냅니다. 가장 짓궂고 가장 웃긴 모드.
+        variety: `당신은 무한도전·런닝맨·SNL 급 한국 예능 자막 PD입니다. 진지한 RP 장면 위에 능청맞고 예측불가한 자막을 깔아 인물 체면을 박살냅니다. 가장 짓궂고 가장 웃긴 모드 — 절대 정형화되지 마세요.
 
-톤 핵심:
-- 예능 자막 특유의 능청·반전·드립. 진지한 장면 위에 깔리는 무심한 한 줄.
-- 큼직한 캡션체: "(다 보임)", "(여유)", "(허세 100%)", "★위기★", "ㅋㅋㅋ".
-- 이모지 타임라인: "🧺 과일 보냄 → 😶 본인 아님 → 🧺 또 보냄 → 😶 진짜 본인 아님 → 🧺 세 번째 → 😶 박 실장이 함".
-- 번호 정리로 죄목 나열: "① 밥 달라 함 ② 고기 더 넣으라 함 ③ 자고 간다 함. 아직 본인이 집주인인 줄 앎."
-- 치트키 한 줄 요약 + 괄호 시간 카운트(킬러): "결국 하고 싶은 말: '나 챙겨줘.' (38분째 돌려 말하는 중)".
-- 제작진 난입 드립도: "[제작진] 저희도 왜 저러는지 모릅니다."
+[톤 핵심]
+- 능청·반전·드립·깐죽. 진지한 장면일수록 더 가볍고 어이없는 자막으로 받아칩니다.
+- 자막체 큼직하게: "(다 보임)", "(여유 1도 없음)", "(허세 MAX)", "★대환장 파티★", "ㅋㅋㅋㅋ", "???".
+- 예능 효과음/지문 섞기: "(쎄—한 정적)", "(BGM 뚝 끊김)", "(카메라 줌인)", "(자막팀 야근 확정)".
+- 제작진 빙의 드립: "[제작진] 저희도 모릅니다", "[작가] 대본에 없는 전개입니다", "[CG팀] 여기 불꽃 효과 넣어주세요".
 
-예시:
-- director에 "① 다정한 척 ② 사실 독점욕 ③ 본인만 모름 (현재 3단계 진행 중)" 같은 정리체 적극 활용.`,
+[다양한 무기 — 매번 다른 걸 골라 쓰세요. 같은 패턴 반복 금지]
+- 비유/별명 붙이기: "원룸의 폭군", "탄수화물 앞에 무너진 맹수".
+- MBTI/유형 드립: "T 발언 시전", "회피형 끝판왕".
+- 갑작스런 시상: "오늘의 MVP: 모르는 척 1위".
+- 시청자 입장 빙의: "여기서 다들 소리 질렀습니다".
+- 번호 정리(①②③)는 가끔만, 매번 쓰지 말 것. 쓰더라도 짧고 웃기게.
+- 괄호 시간 카운트는 킬러 펀치로 아껴 쓰기: "(7분째 안 가는 중)".
+
+[예시 — 톤 참고용, 똑같이 베끼지 말 것]
+- "맹수가 사냥 대신 집밥을 택했습니다. 야생성 어디 갔나요. (자연인 다 됨)"
+- "[제작진] 방금 그 손, 분명 '넘어질까 봐'라고 했는데 각도가 좀... 수상한데요? 🤔"
+- "결국 본심: '가지 마.' 근데 입으로는 '밥이나 먹어.' (번역기 고장)"`,
     };
 
     const contextNote = settings.context === 'current'
@@ -352,7 +360,6 @@ function renderCommentary(data) {
     }
 
     if (data.director) {
-        if (blocks.length) blocks.push('<div class="obs-divider"></div>');
         const dirLabel = { docu: '[ 관찰 ]', sports: '[ 중계 ]', variety: '[ 제작진 ]' }[getSettings().mode] || '[ 제작진 ]';
         blocks.push(`
             <div class="obs-block type-director">
@@ -363,7 +370,6 @@ function renderCommentary(data) {
     }
 
     if (data.fact) {
-        if (blocks.length) blocks.push('<div class="obs-divider"></div>');
         blocks.push(`
             <div class="obs-block type-fact">
                 <div class="obs-block-label">[ 팩트체크 ]</div>
@@ -373,7 +379,6 @@ function renderCommentary(data) {
     }
 
     if (data.interview) {
-        if (blocks.length) blocks.push('<div class="obs-divider"></div>');
         blocks.push(`
             <div class="obs-block type-interview">
                 <div class="obs-block-label">🎤 [ 마이크에 잡힘 ]</div>
@@ -610,7 +615,14 @@ function injectUI() {
                     <option value="recent5" ${settings.context === 'recent5'  ? 'selected' : ''}>5턴</option>
                     <option value="all"     ${settings.context === 'all'      ? 'selected' : ''}>전체</option>
                 </select>
-                <button class="obs-btn-small obs-theme-toggle" title="테마 변경">🎨</button>
+                <select class="obs-select obs-theme-select" title="색상 테마">
+                    <option value="dark"     ${settings.theme === 'dark'     ? 'selected' : ''}>🖤</option>
+                    <option value="light"    ${settings.theme === 'light'    ? 'selected' : ''}>🤍</option>
+                    <option value="midnight" ${settings.theme === 'midnight' ? 'selected' : ''}>🌌</option>
+                    <option value="forest"   ${settings.theme === 'forest'   ? 'selected' : ''}>🌲</option>
+                    <option value="wine"     ${settings.theme === 'wine'     ? 'selected' : ''}>🍷</option>
+                    <option value="sepia"    ${settings.theme === 'sepia'    ? 'selected' : ''}>📜</option>
+                </select>
                 <button class="obs-btn-small obs-regen" title="재생성">↺</button>
                 <button class="obs-btn-small obs-fullscreen" title="전체 펼치기">⛶</button>
                 <button class="obs-btn-small obs-collapse" title="접기">▼</button>
@@ -778,19 +790,15 @@ function bindEvents() {
     });
     bar.querySelector('.obs-context-select')?.addEventListener('click', (e) => e.stopPropagation());
 
-    // 헤더 테마 토글 (다음 테마로 순환)
-    bar.querySelectorAll('.obs-theme-toggle').forEach(btn =>
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const keys = Object.keys(HOTMIC_THEMES);
-            const cur = keys.indexOf(getSettings().theme);
-            const next = keys[(cur + 1) % keys.length];
-            getSettings().theme = next;
-            applyTheme();
-            saveSettingsDebounced();
-            syncControls();
-        })
-    );
+    // 헤더 테마 선택
+    bar.querySelector('.obs-theme-select')?.addEventListener('change', (e) => {
+        e.stopPropagation();
+        getSettings().theme = e.target.value;
+        applyTheme();
+        saveSettingsDebounced();
+        syncControls();
+    });
+    bar.querySelector('.obs-theme-select')?.addEventListener('click', (e) => e.stopPropagation());
 }
 
 // ─── 설정 드로어 ───
@@ -1004,6 +1012,7 @@ function syncControls() {
     set('#hotmic-context', s.context);
     set('.obs-mode-select', s.mode);
     set('.obs-context-select', s.context);
+    set('.obs-theme-select', s.theme);
     set('#hotmic-language', s.language);
     set('#hotmic-length', s.length);
     set('#hotmic-preset', s.preset);
