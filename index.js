@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.8.0 ───
+// ─── 🎤 Hot Mic v2.1.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS = {
     scrollSpeed: 40,          // px/sec
     fullscreen: false,        // 전체 펼침 상태
     fxFrequency: 30,          // 마스코트 애니메이션 등장 확률 (%)
+    length: 'normal',         // 'short' | 'normal' | 'long' — 해설 분량
+    preset: 'all',            // 'all' | 'fact' | 'interview' | 'broadcast' — 구성 프리셋
     debug: false,             // 화면 디버그 배너 (모바일 진단용, 필요시 설정에서 켜기)
 };
 
@@ -90,6 +92,23 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
         ? '\n\n모든 해설은 영어로 작성하세요. (Write all commentary in English. Keep the same satirical reality-show tone.)'
         : '\n\n모든 해설은 한국어로 작성하세요.';
 
+    // 분량
+    const lengthNote = {
+        short:  '\n\n[분량] 아주 간결하게. 각 항목은 한 줄(최대 1문장). 펀치라인 위주로 짧고 강하게.',
+        normal: '\n\n[분량] 보통. 각 항목 1~2문장.',
+        long:   '\n\n[분량] 풍부하게. 각 항목 2~4문장까지 허용. 디테일과 부연을 살리되 데드팬 톤은 유지.',
+    }[settings.length] || '';
+
+    // 구성 프리셋: 어떤 블록을 채울지
+    const presetMap = {
+        all:        { fields: ['inner', 'director', 'fact', 'interview'], note: '아래 4개 항목을 모두 채우세요(자연스럽지 않으면 일부 null 허용).' },
+        fact:       { fields: ['fact'], note: '오직 fact(팩트체크)만 채우세요. inner, director, interview는 반드시 null.' },
+        interview:  { fields: ['interview'], note: '오직 interview(관찰 카메라 인터뷰)만 채우세요. inner, director, fact는 반드시 null.' },
+        broadcast:  { fields: ['inner', 'director'], note: '오직 inner(속마음)와 director(제작진/중계)만 채우세요. fact, interview는 반드시 null.' },
+    };
+    const presetCfg = presetMap[settings.preset] || presetMap.all;
+    const presetNote = `\n\n[구성] ${presetCfg.note}`;
+
     const systemPrompt = `${modePrompts[settings.mode]}
 
 당신은 관찰자입니다. 캐릭터는 당신의 존재를 모릅니다. 당신의 해설은 캐릭터에게 보이지 않으며, 다음 대화에 영향을 주지 않습니다.
@@ -108,7 +127,7 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
 - 캐릭터의 진지함과 해설의 무심함의 낙차가 클수록 좋습니다. 캐릭터가 목숨 걸고 진지할 때 해설은 날씨 얘기하듯.
 - 캐릭터 성격(시트)의 디테일을 콕 집어 건조하게 들이대세요. 막연한 평가가 아니라 그 캐릭터만의 구체적 모순을 짚어야 성격 반영이 됩니다.
 
-${contextNote}${langNote}
+${contextNote}${langNote}${lengthNote}${presetNote}
 
 반드시 JSON 형식으로만 응답하세요. 다른 텍스트, 마크다운 코드블록 없이 순수 JSON만.
 
@@ -159,12 +178,15 @@ ${chatHistory}
         ? profiles.find(p => p.name === profileName || p.id === profileName)
         : null;
 
+    // 분량 → 응답 토큰 상한
+    const maxTokens = { short: 350, normal: 700, long: 1200 }[settings.length] || 700;
+
     if (targetProfile && cmrs && typeof cmrs.sendRequest === 'function') {
         try {
             const result = await cmrs.sendRequest(
                 targetProfile.id,
                 [{ role: 'user', content: fullPrompt }],
-                1000,
+                maxTokens,
             );
             // 반환 형태가 버전별로 다름: 문자열 또는 {content}
             raw = typeof result === 'string' ? result : (result?.content || result?.text || '');
@@ -180,7 +202,7 @@ ${chatHistory}
             throw new Error('generateQuietPrompt를 찾을 수 없습니다. ST 버전을 확인하세요.');
         }
         try {
-            raw = await genQuiet(fullPrompt, false, true, null, '관찰자', null, true);
+            raw = await genQuiet(fullPrompt, false, true, null, '관찰자', maxTokens, true);
         } catch (e) {
             raw = await genQuiet(fullPrompt, false, true);
         }
@@ -276,9 +298,10 @@ function renderCommentary(data) {
 
     if (data.director) {
         if (blocks.length) blocks.push('<div class="obs-divider"></div>');
+        const dirLabel = { docu: '[ 관찰 ]', sports: '[ 중계 ]', variety: '[ 제작진 ]' }[getSettings().mode] || '[ 제작진 ]';
         blocks.push(`
             <div class="obs-block type-director">
-                <div class="obs-block-label">[ 제작진 ]</div>
+                <div class="obs-block-label">${dirLabel}</div>
                 <div class="obs-block-content">${escHtml(data.director)}</div>
             </div>
         `);
@@ -308,50 +331,49 @@ function renderCommentary(data) {
         ? blocks.join('')
         : '<div class="obs-empty">해설 없음</div>';
 
-    // 새 해설 렌더되면 맨 위로 + 자동스크롤 재시작
+    // 새 해설 렌더되면 맨 위로 (펼친 패널은 손가락으로 스크롤)
     body.scrollTop = 0;
-    if (getSettings().autoscroll) startAutoScroll();
-
-    // 모드별 마스코트 애니메이션 (확률 + 스마트 가중치)
-    maybePlayFx(data);
 }
 
-// ─── 마스코트 애니메이션 ───
-// 모드별 이모지가 패널에서 한 번 연출되고 사라진다.
-// 등장 확률 = 기본 fxFrequency% + 상황 키워드 가중치.
-function maybePlayFx(data) {
+// ─── preview에 붙일 이모지 결정 ───
+// (옛 마스코트 애니메이션 대신, 흐르는 preview 옆에 이모지를 같이 넣는다)
+// 빈도 확률 + 모드별 키워드 가중치는 그대로 유지.
+function pickPreviewEmojis(data) {
     const s = getSettings();
     const base = Math.max(0, Math.min(100, s.fxFrequency || 0));
-    if (base === 0) return;
+    if (base === 0) return '';
 
     const mode = s.mode;
     const text = [data.inner, data.director, data.fact, data.interview, data.preview]
         .filter(Boolean).join(' ');
 
-    // 스마트 가중치: 모드별 "터질 만한" 키워드 있으면 확률 부스트
     const triggers = {
         docu:    ['멸종', '희귀', '최초', '관찰 사상', '경이', '드뭅', '유일'],
         sports:  ['골', '득점', '역전', '실패', '성공', '대기록', '승부', '결정', '!'],
         variety: ['치트키', '결국', '하고 싶은 말', '들켰', '실패', '폭로', '???', 'ㅋㅋ'],
     };
     const hits = (triggers[mode] || []).filter(k => text.includes(k)).length;
-    const boosted = Math.min(100, base + hits * 18); // 키워드당 +18%
+    const boosted = Math.min(100, base + hits * 18);
 
-    if (Math.random() * 100 >= boosted) return; // 확률 통과 못하면 끝
+    if (Math.random() * 100 >= boosted) return '';
 
-    playFx(mode, text);
+    const pool = pickEmojis(mode, text);
+    // 1~2개 골라서 반환
+    const n = Math.random() < 0.4 ? 2 : 1;
+    let out = '';
+    for (let i = 0; i < n; i++) out += pool[Math.floor(Math.random() * pool.length)];
+    return out;
 }
 
 // 모드별 기본 이모지 풀 (다양하게)
 const FX_SETS = {
-    docu:    { emojis: ['📹', '🔬', '🦒', '🐾', '🧬', '🌿', '🔭', '📋', '🦔', '🐧'], anim: 'fx-pan' },
-    sports:  { emojis: ['⚽', '🥅', '🏟️', '📣', '🏆', '🚩', '🥏', '🎽', '🏅', '📊'], anim: 'fx-dribble' },
-    variety: { emojis: ['🎉', '✨', '🎊', '💥', '😂', '🤡', '💢', '❗', '🫣', '👀', '💀', '🙈'], anim: 'fx-pop' },
+    docu:    { emojis: ['📹', '🔬', '🦒', '🐾', '🧬', '🌿', '🔭', '📋', '🦔', '🐧'] },
+    sports:  { emojis: ['⚽', '🥅', '🏟️', '📣', '🏆', '🚩', '🥏', '🎽', '🏅', '📊'] },
+    variety: { emojis: ['🎉', '✨', '🎊', '💥', '😂', '🤡', '💢', '❗', '🫣', '👀', '💀', '🙈'] },
 };
 
 // 해설 내용에 맞는 이모지를 골라준다 (내용 인식)
 const FX_KEYWORDS = [
-    // [정규식, 이모지들]
     [/사랑|좋아|설레|두근|애정|키스|연인|심쿵/, ['💗', '💓', '😳', '🫶', '💘']],
     [/화|분노|짜증|빡|열받|폭발|성질/, ['💢', '😡', '🔥', '💥']],
     [/거짓|뻥|구라|시치미|들켰|발뺌/, ['🤥', '👃', '🚨', '❌']],
@@ -367,7 +389,6 @@ const FX_KEYWORDS = [
 ];
 
 function pickEmojis(mode, text) {
-    // 내용 키워드 매칭되면 그 이모지 우선
     if (text) {
         for (const [re, emojis] of FX_KEYWORDS) {
             if (re.test(text)) return emojis;
@@ -376,96 +397,31 @@ function pickEmojis(mode, text) {
     return FX_SETS[mode]?.emojis || FX_SETS.variety.emojis;
 }
 
-function playFx(mode, text) {
-    const bar = document.getElementById('observer-bar');
-    if (!bar) return;
-
-    // 현재 보이는 자막 요소(ticker 또는 panel)에 붙여서, 자막과 같은 위치에서 터지게 한다.
-    const ticker = document.getElementById('observer-ticker');
-    const panel = document.getElementById('observer-panel');
-    let host = bar;
-    if (panel && panel.offsetParent !== null && getComputedStyle(panel).display !== 'none') {
-        host = panel;
-    } else if (ticker && ticker.offsetParent !== null && getComputedStyle(ticker).display !== 'none') {
-        host = ticker;
-    }
-    // host가 position:static이면 absolute 기준이 안 되므로 relative 보장
-    if (getComputedStyle(host).position === 'static') {
-        host.style.position = 'relative';
-    }
-    // 패널은 overflow:hidden이라 위로 솟는 이모지가 잘림 → fx 동안만 잘림 허용
-    if (host === panel) {
-        host.style.overflow = 'visible';
-    }
-
-    const set = FX_SETS[mode] || FX_SETS.variety;
-    const pool = pickEmojis(mode, text);
-
-    // 예능 폭죽은 여러 개 흩뿌림, 나머지는 1~2개
-    const count = mode === 'variety' ? 5 : (mode === 'sports' ? 2 : 2);
-
-    for (let i = 0; i < count; i++) {
-        const el = document.createElement('span');
-        el.className = `hotmic-fx ${set.anim}`;
-        el.textContent = pool[Math.floor(Math.random() * pool.length)];
-        // 랜덤 시작 위치/지연
-        el.style.left = (10 + Math.random() * 80) + '%';
-        el.style.animationDelay = (Math.random() * 0.25) + 's';
-        el.style.fontSize = (18 + Math.random() * 14) + 'px';
-        host.appendChild(el);
-        setTimeout(() => el.remove(), 2200);
-    }
-}
-
-// ─── 자동 스크롤 엔진 ───
-let _scrollRAF = null;
-let _scrollAccum = 0;
-let _lastTs = 0;
-
-function startAutoScroll() {
-    stopAutoScroll();
-    if (!getSettings().autoscroll) return;
-    const body = document.querySelector('.obs-panel-body');
-    if (!body) return;
-    // 패널이 보이지 않으면(예: ticker 상태) clientHeight가 0 → 나중에 다시
-    if (body.clientHeight < 10) return;
-    // 스크롤할 내용이 없으면 안 함
-    if (body.scrollHeight <= body.clientHeight + 2) return;
-
-    _lastTs = performance.now();
-    _scrollAccum = body.scrollTop;
-
-    const step = (ts) => {
-        const speed = getSettings().scrollSpeed || 40; // px/sec
-        const dt = (ts - _lastTs) / 1000;
-        _lastTs = ts;
-        _scrollAccum += speed * dt;
-        body.scrollTop = _scrollAccum;
-
-        // 끝에 도달하면 잠깐 멈췄다가 위로 (루프)
-        if (body.scrollTop + body.clientHeight >= body.scrollHeight - 1) {
-            stopAutoScroll();
-            setTimeout(() => {
-                const b = document.querySelector('.obs-panel-body');
-                if (b && getSettings().autoscroll) {
-                    b.scrollTop = 0;
-                    startAutoScroll();
-                }
-            }, 2500);
-            return;
-        }
-        _scrollRAF = requestAnimationFrame(step);
-    };
-    _scrollRAF = requestAnimationFrame(step);
-}
-
-function stopAutoScroll() {
-    if (_scrollRAF) { cancelAnimationFrame(_scrollRAF); _scrollRAF = null; }
-}
+// ─── 자동 스크롤 제거됨 (ticker marquee로 대체). 호환용 no-op. ───
+function startAutoScroll() { /* deprecated: marquee 사용 */ }
+function stopAutoScroll() { /* deprecated */ }
 
 function updateTickerPreview(preview) {
     const el = document.querySelector('.obs-ticker-preview');
-    if (el) el.textContent = preview || '녹음 중...';
+    if (!el) return;
+    const text = preview || '녹음 중...';
+    // 안쪽 흐름용 span 구조로 렌더. 텍스트가 영역보다 길면 우→좌로 흐른다.
+    el.innerHTML = `<span class="obs-marquee-inner">${escHtml(text)}</span>`;
+    const inner = el.querySelector('.obs-marquee-inner');
+    // 다음 프레임에 너비 비교해서 흐름 여부 결정
+    requestAnimationFrame(() => {
+        if (!inner) return;
+        const overflow = inner.scrollWidth > el.clientWidth + 4;
+        if (overflow) {
+            inner.classList.add('obs-marquee-run');
+            // 길이에 비례해 속도 조정 (긴 글일수록 오래)
+            const dur = Math.max(6, Math.round(inner.scrollWidth / 30));
+            inner.style.animationDuration = dur + 's';
+        } else {
+            inner.classList.remove('obs-marquee-run');
+            inner.style.animationDuration = '';
+        }
+    });
 }
 
 function setRegenLoading(loading) {
@@ -494,12 +450,6 @@ function setState(newState) {
     getSettings().state = newState;
     saveSettingsDebounced();
     enforcePosition();
-    // 패널을 펼치면 자동스크롤 시작 (모바일에서 ticker→panel 전환 시 작동)
-    if (newState === 'panel' && getSettings().autoscroll) {
-        setTimeout(startAutoScroll, 350); // 펼침 애니메이션 후
-    } else {
-        stopAutoScroll();
-    }
 }
 
 // ─── 해설 생성 실행 ───
@@ -510,6 +460,10 @@ async function runGeneration() {
 
     const collected = collectData();
     if (!collected) return;
+
+    // 생성 시작 시점의 채팅을 기억 (생성 중 채팅이 바뀌면 결과를 버린다)
+    const ctxStart = getContext();
+    const chatKeyStart = ctxStart.chatId ?? ctxStart.getCurrentChatId?.() ?? (ctxStart.chat?.length + ':' + (ctxStart.characterId ?? ''));
 
     isGenerating = true;
     setRegenLoading(true);
@@ -522,8 +476,17 @@ async function runGeneration() {
             collected.history,
             collected.lastMessage,
         );
+        // 생성 도중 채팅이 바뀌었으면 이 결과는 폐기 (다른 채팅에 박히는 것 방지)
+        const ctxNow = getContext();
+        const chatKeyNow = ctxNow.chatId ?? ctxNow.getCurrentChatId?.() ?? (ctxNow.chat?.length + ':' + (ctxNow.characterId ?? ''));
+        if (chatKeyNow !== chatKeyStart) {
+            console.log('[Hot Mic] 채팅이 전환되어 해설 폐기');
+            return;
+        }
         currentCommentary = commentary;
-        updateTickerPreview(commentary.preview || '해설 생성 완료');
+        const emo = pickPreviewEmojis(commentary);
+        const previewText = (emo ? emo + ' ' : '') + (commentary.preview || '해설 생성 완료');
+        updateTickerPreview(previewText);
         renderCommentary(commentary);
     } catch (err) {
         console.error('[Hot Mic] 해설 생성 실패:', err);
@@ -577,7 +540,6 @@ function injectUI() {
                     <option value="recent5" ${settings.context === 'recent5'  ? 'selected' : ''}>최근 5턴</option>
                     <option value="all"     ${settings.context === 'all'      ? 'selected' : ''}>전체</option>
                 </select>
-                <button class="obs-btn-small obs-autoscroll" title="자동 스크롤 켜기/끄기">⤓</button>
                 <button class="obs-btn-small obs-regen" title="재생성">↺</button>
                 <button class="obs-btn-small obs-fullscreen" title="전체 펼치기">⛶</button>
                 <button class="obs-btn-small obs-collapse" title="접기">▼</button>
@@ -673,9 +635,18 @@ function bindEvents() {
     // 아이콘 → ticker
     bar.querySelector('#observer-icon-btn')?.addEventListener('click', () => setState('ticker'));
 
-    // ticker 클릭 (버튼 제외) → panel
+    // ticker 클릭: preview 탭 → 흐름 멈춤/재생 토글, 그 외 영역 → 패널 열기
     bar.querySelector('#observer-ticker')?.addEventListener('click', (e) => {
-        if (!e.target.closest('button')) setState('panel');
+        if (e.target.closest('button')) return;
+        if (e.target.closest('.obs-ticker-preview')) {
+            // 흐름 토글
+            const inner = bar.querySelector('.obs-marquee-inner');
+            if (inner && inner.classList.contains('obs-marquee-run')) {
+                inner.classList.toggle('obs-marquee-paused');
+            }
+            return; // 패널 안 열림
+        }
+        setState('panel');
     });
 
     // 펼치기
@@ -710,38 +681,6 @@ function bindEvents() {
             btn.title = on ? '원래대로' : '전체 펼치기';
         })
     );
-
-    // 자동 스크롤 토글
-    bar.querySelectorAll('.obs-autoscroll').forEach(btn => {
-        const refresh = () => {
-            const on = getSettings().autoscroll;
-            btn.style.opacity = on ? '1' : '0.35';
-            btn.title = on ? '자동 스크롤: 켜짐 (클릭해 끄기)' : '자동 스크롤: 꺼짐 (클릭해 켜기)';
-        };
-        refresh();
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const s = getSettings();
-            s.autoscroll = !s.autoscroll;
-            saveSettingsDebounced();
-            refresh();
-            syncControls();
-            if (s.autoscroll) startAutoScroll(); else stopAutoScroll();
-        });
-    });
-
-    // 본문에 마우스 올리면 자동스크롤 일시정지
-    const body = bar.querySelector('.obs-panel-body');
-    if (body) {
-        body.addEventListener('mouseenter', stopAutoScroll);
-        body.addEventListener('mouseleave', () => { if (getSettings().autoscroll) startAutoScroll(); });
-        // 사용자가 직접 스크롤하면 잠깐 멈춤
-        body.addEventListener('wheel', () => {
-            stopAutoScroll();
-            clearTimeout(body._resumeTimer);
-            body._resumeTimer = setTimeout(() => { if (getSettings().autoscroll) startAutoScroll(); }, 2000);
-        });
-    }
 
     // 🥚 이스터에그는 설정창 "출력 언어" 라벨로 이동 (injectSettings에서 바인딩)
 
@@ -819,17 +758,24 @@ function injectSettings() {
                 <option value="all"     ${settings.context === 'all'     ? 'selected' : ''}>전체 대화</option>
             </select>
 
-            <label class="checkbox_label" style="margin-top:12px;">
-                <input type="checkbox" id="hotmic-autoscroll" ${settings.autoscroll ? 'checked' : ''}>
-                <span>자막 자동 스크롤</span>
-            </label>
-            <label for="hotmic-scrollspeed" style="margin-top:6px;">스크롤 속도: <span id="hotmic-speed-val">${settings.scrollSpeed}</span> px/s</label>
-            <input type="range" id="hotmic-scrollspeed" min="10" max="120" step="5" value="${settings.scrollSpeed}" style="width:100%;">
-            <small class="notes">패널에 마우스를 올리거나 직접 스크롤하면 잠시 멈춥니다.</small>
+            <label for="hotmic-length-s" style="margin-top:10px;">해설 분량</label>
+            <select id="hotmic-length-s" class="text_pole">
+                <option value="short"  ${settings.length === 'short'  ? 'selected' : ''}>간결 (짧고 강하게)</option>
+                <option value="normal" ${settings.length === 'normal' ? 'selected' : ''}>보통</option>
+                <option value="long"   ${settings.length === 'long'   ? 'selected' : ''}>수다 (풍부하게)</option>
+            </select>
 
-            <label for="hotmic-fxfreq" style="margin-top:12px;">애니메이션 빈도: <span id="hotmic-fx-val">${settings.fxFrequency}</span>%</label>
+            <label for="hotmic-preset-s" style="margin-top:10px;">구성</label>
+            <select id="hotmic-preset-s" class="text_pole">
+                <option value="all"       ${settings.preset === 'all'       ? 'selected' : ''}>전체 (속마음+제작진+팩트+인터뷰)</option>
+                <option value="fact"      ${settings.preset === 'fact'      ? 'selected' : ''}>팩트체크만</option>
+                <option value="interview" ${settings.preset === 'interview' ? 'selected' : ''}>인터뷰만</option>
+                <option value="broadcast" ${settings.preset === 'broadcast' ? 'selected' : ''}>속마음 + 제작진/중계만</option>
+            </select>
+
+            <label for="hotmic-fxfreq" style="margin-top:12px;">이모지 빈도: <span id="hotmic-fx-val">${settings.fxFrequency}</span>%</label>
             <input type="range" id="hotmic-fxfreq" min="0" max="100" step="10" value="${settings.fxFrequency}" style="width:100%;">
-            <small class="notes">해설이 뜰 때 모드별 마스코트(🎉 예능 / ⚽ 중계 / 📹 다큐)가 등장할 확률. 0%면 끔. 상황이 격할수록 확률이 올라갑니다.</small>
+            <small class="notes">해설이 뜰 때 자막(미리보기) 옆에 상황 맞는 이모지가 붙을 확률. 0%면 끔. 상황이 격할수록 확률이 올라갑니다.</small>
         </div>
     </div>
 </div>`;
@@ -850,7 +796,8 @@ function injectSettings() {
     bind('hotmic-language', 'language');
     bind('hotmic-mode-s', 'mode');
     bind('hotmic-context-s', 'context');
-    bind('hotmic-autoscroll', 'autoscroll');
+    bind('hotmic-length-s', 'length');
+    bind('hotmic-preset-s', 'preset');
 
     // 🥚 이스터에그: "출력 언어" 라벨 1.5초 내 5번 탭 → 디버그 토글
     const langLabel = document.getElementById('hotmic-lang-label');
@@ -873,16 +820,6 @@ function injectSettings() {
             }
         });
     }
-
-    // 스크롤 속도 슬라이더
-    const speedInput = document.getElementById('hotmic-scrollspeed');
-    speedInput?.addEventListener('input', (e) => {
-        const v = parseInt(e.target.value, 10);
-        getSettings().scrollSpeed = v;
-        const lbl = document.getElementById('hotmic-speed-val');
-        if (lbl) lbl.textContent = v;
-        saveSettingsDebounced();
-    });
 
     // 애니메이션 빈도 슬라이더
     const fxInput = document.getElementById('hotmic-fxfreq');
@@ -915,14 +852,10 @@ function syncControls() {
     set('#hotmic-context-s', s.context);
     set('#hotmic-profile', s.profile);
     set('#hotmic-language', s.language);
+    set('#hotmic-length-s', s.length);
+    set('#hotmic-preset-s', s.preset);
     const en = document.getElementById('hotmic-enabled');
     if (en) en.checked = s.enabled;
-    const as = document.getElementById('hotmic-autoscroll');
-    if (as) as.checked = s.autoscroll;
-    // 자막바 자동스크롤 버튼 투명도
-    document.querySelectorAll('.obs-autoscroll').forEach(b => {
-        b.style.opacity = s.autoscroll ? '1' : '0.35';
-    });
 }
 
 // ─── 매직완드(확장) 메뉴 토글 — 모바일 접근성 ───
