@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.4.1 ───
+// ─── 🎤 Hot Mic v1.5.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -432,9 +432,12 @@ function escHtml(str) {
 function setState(newState) {
     const bar = document.getElementById('observer-bar');
     if (!bar) return;
+    const wasFs = bar.classList.contains('obs-fs-bar');
     bar.className = `state-${newState}`;
+    if (wasFs && newState === 'panel') bar.classList.add('obs-fs-bar');
     getSettings().state = newState;
     saveSettingsDebounced();
+    enforcePosition();
 }
 
 // ─── 해설 생성 실행 ───
@@ -527,8 +530,7 @@ function injectUI() {
 
 </div>`;
 
-    // body에 직접 삽입한다. (#sheld 안에 넣으면 sheld의 position/overflow 때문에
-    // position:fixed가 sheld 기준으로 잡혀 모바일에서 화면 밖으로 밀린다.)
+    // body에 직접 삽입한다.
     document.body.insertAdjacentHTML('beforeend', html);
 
     if (settings.fullscreen) {
@@ -542,6 +544,34 @@ function injectUI() {
         document.getElementById('observer-bar')?.classList.add('state-ticker');
     }
     bindEvents();
+    enforcePosition();
+}
+
+// 위치 강제 보정:
+// ST의 조상 요소에 transform/filter가 걸리면 position:fixed가 화면이 아닌
+// 그 조상 기준으로 잡혀 화면 밖으로 밀린다. bar를 body 직속으로 끌어올리고
+// 인라인 스타일로 위치를 못박아 어떤 CSS/조상보다 우선하게 만든다.
+function enforcePosition() {
+    const bar = document.getElementById('observer-bar');
+    if (!bar) return;
+
+    // 1) body 직속이 아니면 끌어올림
+    if (bar.parentElement !== document.body) {
+        document.body.appendChild(bar);
+    }
+
+    // 2) 전체펼침이 아닐 때만 하단 고정을 강제 (전체펼침은 CSS가 처리)
+    if (!bar.classList.contains('obs-fs-bar')) {
+        const isMobile = window.matchMedia('(max-width: 1000px)').matches;
+        const bottomPx = isMobile ? 56 : 60;
+        bar.style.setProperty('position', 'fixed', 'important');
+        bar.style.setProperty('left', '0', 'important');
+        bar.style.setProperty('right', '0', 'important');
+        bar.style.setProperty('bottom', `calc(${bottomPx}px + env(safe-area-inset-bottom, 0px))`, 'important');
+        bar.style.setProperty('top', 'auto', 'important');
+        bar.style.setProperty('transform', 'none', 'important');
+        bar.style.setProperty('z-index', '100000', 'important');
+    }
 }
 
 function bindEvents() {
@@ -812,6 +842,7 @@ function injectWandMenu() {
             setState('ticker');
             const bar = document.getElementById('observer-bar');
             if (bar) bar.style.display = '';
+            enforcePosition();
             setTimeout(runGeneration, 100);
         }
         syncControls();
@@ -847,6 +878,9 @@ jQuery(async () => {
             clearInterval(retry);
         }
     }, 1000);
+
+    // ST가 로드 중 DOM을 재배치할 수 있으니 위치를 몇 번 더 못박는다
+    [300, 1000, 2500].forEach(ms => setTimeout(enforcePosition, ms));
 
     console.log('[Hot Mic] 로드 완료. 캐릭터는 모릅니다.');
 });
