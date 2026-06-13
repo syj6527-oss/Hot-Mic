@@ -56,6 +56,16 @@ SillyTavern/public/scripts/extensions/third-party/hot-mic/
 
 > **API 키 불필요.** SillyTavern에 이미 연결된 API(Claude, GPT 등)를 그대로 사용합니다. 별도 설정 없이 바로 작동합니다.
 
+## 업데이트
+
+확장 매니저에서 **Update** 버튼을 눌러 최신 버전을 받습니다.
+
+> ⚠️ **업데이트가 바로 안 보이면** 브라우저가 옛 파일을 캐싱한 것입니다. **강력 새로고침**으로 해결하세요:
+> - PC: `Ctrl+Shift+R` (Mac: `Cmd+Shift+R`)
+> - 모바일: 브라우저 설정에서 캐시 삭제 후 새로고침
+>
+> 적용된 버전은 브라우저 콘솔(F12)의 `[Hot Mic] v2.x.x 로드 완료` 로그로 확인할 수 있습니다.
+
 ## 사용법
 
 AI 응답이 생성되면 화면 하단에 자막바가 뜹니다.

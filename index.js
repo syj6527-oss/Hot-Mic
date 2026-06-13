@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.15.0 ───
+// ─── 🎤 Hot Mic v2.15.1 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,6 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
+const HOTMIC_VERSION = '2.15.1';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
@@ -1412,7 +1413,7 @@ jQuery(async () => {
         try { enforcePosition(); } catch (e) {}
     }, ms));
 
-    console.log('[Hot Mic] 로드 완료. 캐릭터는 모릅니다.');
+    console.log(`[Hot Mic] v${HOTMIC_VERSION} 로드 완료. 캐릭터는 모릅니다.`);
 });
 
 // 디버그 진단 보고 (이스터에그로 켤 때만 호출)
