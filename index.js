@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.4.0 ───
+// ─── 🎤 Hot Mic v1.4.1 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -527,10 +527,9 @@ function injectUI() {
 
 </div>`;
 
-    // 모바일 ST는 #sheld가 transform/overflow를 걸어 body 기준 fixed가 안 먹는 경우가 있음.
-    // 가능하면 #sheld 안에 넣고, 없으면 body.
-    const host = document.getElementById('sheld') || document.body;
-    host.insertAdjacentHTML('beforeend', html);
+    // body에 직접 삽입한다. (#sheld 안에 넣으면 sheld의 position/overflow 때문에
+    // position:fixed가 sheld 기준으로 잡혀 모바일에서 화면 밖으로 밀린다.)
+    document.body.insertAdjacentHTML('beforeend', html);
 
     if (settings.fullscreen) {
         document.getElementById('observer-panel')?.classList.add('obs-fs');
