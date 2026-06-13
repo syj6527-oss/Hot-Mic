@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.12.1 ───
+// ─── 🎤 Hot Mic v2.13.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
     preset: 'all',            // 'all' | 'fact' | 'interview' | 'broadcast' — 구성 프리셋
     opacity: 92,              // 자막바/패널 불투명도 (%)
     theme: 'dark',            // 색상 테마
+    iconPos: null,            // 최소화 아이콘 위치 {x, y} (드래그로 변경, null=기본 우하단)
 };
 
 // 색상 테마 정의 (배경 RGB, 강조색, 텍스트색, 버튼색)
@@ -615,6 +616,7 @@ function setState(newState) {
     getSettings().state = newState;
     saveSettingsDebounced();
     enforcePosition();
+    if (newState === 'icon') applyIconPos();
     // 패널 펼침 직후 헤더 높이 확정되면 본문 스크롤 높이 재계산
     if (newState === 'panel') {
         requestAnimationFrame(enforcePosition);
@@ -821,8 +823,59 @@ function bindEvents() {
     const bar = document.getElementById('observer-bar');
     if (!bar) return;
 
-    // 아이콘 → ticker
-    bar.querySelector('#observer-icon-btn')?.addEventListener('click', () => setState('ticker'));
+    // 아이콘: 탭 → 열기, 드래그 → 위치 이동
+    const iconBtn = bar.querySelector('#observer-icon-btn');
+    if (iconBtn) {
+        let dragging = false, moved = false, startX = 0, startY = 0, baseX = 0, baseY = 0;
+
+        const onDown = (e) => {
+            const pt = e.touches ? e.touches[0] : e;
+            dragging = true; moved = false;
+            startX = pt.clientX; startY = pt.clientY;
+            const r = iconBtn.getBoundingClientRect();
+            baseX = r.left; baseY = r.top;
+            iconBtn.style.transition = 'none';
+        };
+        const onMove = (e) => {
+            if (!dragging) return;
+            const pt = e.touches ? e.touches[0] : e;
+            const dx = pt.clientX - startX;
+            const dy = pt.clientY - startY;
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) moved = true;
+            if (!moved) return;
+            e.preventDefault();
+            const size = iconBtn.offsetWidth || 44;
+            let nx = baseX + dx, ny = baseY + dy;
+            // 화면 안으로 제한
+            nx = Math.max(4, Math.min(window.innerWidth - size - 4, nx));
+            ny = Math.max(4, Math.min(window.innerHeight - size - 4, ny));
+            // bar의 flex-end 무시하고 직접 고정
+            iconBtn.style.position = 'fixed';
+            iconBtn.style.left = nx + 'px';
+            iconBtn.style.top = ny + 'px';
+            iconBtn.style.right = 'auto';
+            iconBtn.style.bottom = 'auto';
+        };
+        const onUp = () => {
+            if (!dragging) return;
+            dragging = false;
+            iconBtn.style.transition = '';
+            if (moved) {
+                const r = iconBtn.getBoundingClientRect();
+                getSettings().iconPos = { x: r.left, y: r.top };
+                saveSettingsDebounced();
+            } else {
+                setState('ticker'); // 안 움직였으면 탭으로 간주 → 열기
+            }
+        };
+
+        iconBtn.addEventListener('mousedown', onDown);
+        iconBtn.addEventListener('touchstart', onDown, { passive: true });
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('mouseup', onUp);
+        window.addEventListener('touchend', onUp);
+    }
 
     // ticker 클릭: preview 탭 → 흐름 멈춤/재생 토글, 그 외 영역 → 패널 열기
     bar.querySelector('#observer-ticker')?.addEventListener('click', (e) => {
@@ -1107,6 +1160,31 @@ function applyTheme() {
 }
 function applyOpacity() { applyTheme(); }
 
+// 저장된 최소화 아이콘 위치 복원 (드래그로 옮긴 자리)
+function applyIconPos() {
+    const iconBtn = document.getElementById('observer-icon-btn');
+    if (!iconBtn) return;
+    const pos = getSettings().iconPos;
+    if (pos && typeof pos.x === 'number') {
+        const size = iconBtn.offsetWidth || 44;
+        const x = Math.max(4, Math.min(window.innerWidth - size - 4, pos.x));
+        const y = Math.max(4, Math.min(window.innerHeight - size - 4, pos.y));
+        iconBtn.style.position = 'fixed';
+        iconBtn.style.left = x + 'px';
+        iconBtn.style.top = y + 'px';
+        iconBtn.style.right = 'auto';
+        iconBtn.style.bottom = 'auto';
+        iconBtn.style.zIndex = '100001';
+    } else {
+        // 기본값: bar의 flex-end (우하단) 사용 → 인라인 스타일 제거
+        iconBtn.style.position = '';
+        iconBtn.style.left = '';
+        iconBtn.style.top = '';
+        iconBtn.style.right = '';
+        iconBtn.style.bottom = '';
+    }
+}
+
 // 설정 값 동기화
 function syncControls() {
     const s = getSettings();
@@ -1245,6 +1323,7 @@ jQuery(async () => {
     safeStep('setupEventListeners', setupEventListeners);
     safeStep('applyEnabledState', applyEnabledState);
     safeStep('applyOpacity', applyOpacity);
+    safeStep('applyIconPos', applyIconPos);
     setTimeout(() => safeStep('injectSettings(지연)', injectSettings), 0);
     setTimeout(() => safeStep('injectWandMenu(지연)', injectWandMenu), 0);
     safeStep('syncControls', syncControls);
