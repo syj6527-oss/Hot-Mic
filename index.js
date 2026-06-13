@@ -2,8 +2,8 @@
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
-import { getContext, extension_settings, saveSettingsDebounced } from '../../../extensions.js';
-import { event_types, eventSource, generateQuietPrompt } from '../../../../script.js';
+import { getContext, extension_settings } from '../../../extensions.js';
+import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
 
@@ -106,14 +106,20 @@ ${chatHistory}
 
 위 마지막 캐릭터 응답을 해설해주세요. JSON만 출력하세요.`;
 
-    // generateQuietPrompt(quiet_prompt, quietToLoud, skipWIAN, quietImage, quietName, responseLength, noContext)
+    // generateQuietPrompt는 ST 컨텍스트에서 런타임에 꺼낸다 (버전별 export 차이 회피).
+    // (quiet_prompt, quietToLoud, skipWIAN, quietImage, quietName, responseLength, noContext)
     // noContext=true → 현재 채팅 컨텍스트를 자동 주입하지 않음 (우리가 직접 넣은 것만 사용)
+    const genQuiet = getContext().generateQuietPrompt;
+    if (typeof genQuiet !== 'function') {
+        throw new Error('generateQuietPrompt를 찾을 수 없습니다. ST 버전을 확인하세요.');
+    }
+
     let raw;
     try {
-        raw = await generateQuietPrompt(fullPrompt, false, true, null, '관찰자', null, true);
+        raw = await genQuiet(fullPrompt, false, true, null, '관찰자', null, true);
     } catch (e) {
         // 구버전 ST 호환: 인자 시그니처가 다를 수 있어 폴백
-        raw = await generateQuietPrompt(fullPrompt, false, true);
+        raw = await genQuiet(fullPrompt, false, true);
     }
 
     const clean = String(raw || '')
