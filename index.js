@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.13.0 ───
+// ─── 🎤 Hot Mic v2.14.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -208,10 +208,10 @@ async function generateCommentary(charData, chatHistory, lastMessage) {
 
     // 분량
     const lengthNote = {
-        short:  '\n\n[분량] 아주 간결하게. 각 항목은 한 줄(최대 1문장). 펀치라인 위주로 짧고 강하게.',
-        normal: '\n\n[분량] 보통. 각 항목 2~3문장.',
-        long:   '\n\n[분량] 풍부하고 길게. 각 항목 4~6문장. 디테일·부연·비유를 충분히 살리되 모드 톤은 유지. 짧게 끝내지 마세요.',
-        max:    '\n\n[분량] 최대한 길고 풍부하게 (초장문). 각 항목을 문단 수준으로 충실히 작성하세요. inner는 여러 인물의 심리를 깊이 있게, director는 긴 본문(중계/사건파일/개요 등)으로, fact는 근거를 여러 개, interview는 최소 4~6개의 문답으로. 다인원이면 등장인물 전원을 다루세요. 절대 짧게 요약하지 말고, 분량을 아끼지 마세요. 모드 톤은 끝까지 유지.',
+        short:  '\n\n[분량] 간결하게. 보통 한 항목당 1~2문장이되, 펀치라인이 살면 더 짧아도 좋습니다. 짧고 강하게.',
+        normal: '\n\n[분량] 보통. 항목당 2~4문장 정도를 기준으로, 내용이 풍부한 항목은 더 길게, 단순한 항목은 더 짧게 — 상황에 맞게 자유롭게 조절하세요.',
+        long:   '\n\n[분량] 풍부하고 길게. 항목당 4문장 이상을 기준으로 하되, 상한을 두지 말고 장면이 풍부하면 마음껏 늘리세요. 디테일·부연·비유를 충분히. 단순한 항목은 굳이 늘리지 말고, 살릴 항목을 살리세요.',
+        max:    '\n\n[분량] 최대한 길고 풍부하게 (초장문). 분량 제한 없음. 각 항목을 문단 수준으로 충실히, 살릴 수 있는 만큼 전부 살리세요. inner는 여러 인물 심리를 깊이, director는 긴 본문, fact는 근거 여러 개, interview는 최소 4~6문답. 다인원이면 전원 다루기. 항목마다 길이가 달라도 좋으니, 내용이 많은 곳은 과감히 길게 쓰고 절대 인위적으로 줄이지 마세요.',
     }[settings.length] || '';
 
     // 구성 프리셋: 어떤 블록을 채울지
@@ -699,6 +699,9 @@ function injectUI() {
 
     <!-- 풀 패널 -->
     <div id="observer-panel">
+        <div class="obs-opacity-track" title="좌우로 드래그해 투명도 조절">
+            <div class="obs-opacity-fill"></div>
+        </div>
         <div class="obs-panel-header">
             <span class="obs-panel-title">🎤 HOT MIC</span>
             <div class="obs-panel-controls">
@@ -951,6 +954,52 @@ function bindEvents() {
         syncControls();
     });
     bar.querySelector('.obs-theme-select')?.addEventListener('click', (e) => e.stopPropagation());
+
+    // 패널 상단 투명도 슬라이더 (좌우 드래그)
+    const opTrack = bar.querySelector('.obs-opacity-track');
+    if (opTrack) {
+        const fill = opTrack.querySelector('.obs-opacity-fill');
+        const syncFill = () => {
+            const v = getSettings().opacity || 92;
+            const pct = (v - 30) / 70 * 100; // 30~100 → 0~100%
+            if (fill) fill.style.width = pct + '%';
+        };
+        syncFill();
+
+        let dragging = false;
+        const setFromX = (clientX) => {
+            const r = opTrack.getBoundingClientRect();
+            let ratio = (clientX - r.left) / r.width;
+            ratio = Math.max(0, Math.min(1, ratio));
+            const v = Math.round(30 + ratio * 70); // 30~100
+            getSettings().opacity = v;
+            applyTheme();
+            syncFill();
+        };
+        const onDown = (e) => {
+            dragging = true;
+            const pt = e.touches ? e.touches[0] : e;
+            setFromX(pt.clientX);
+            e.stopPropagation();
+        };
+        const onMove = (e) => {
+            if (!dragging) return;
+            const pt = e.touches ? e.touches[0] : e;
+            setFromX(pt.clientX);
+            e.preventDefault();
+        };
+        const onUp = () => {
+            if (!dragging) return;
+            dragging = false;
+            saveSettingsDebounced();
+        };
+        opTrack.addEventListener('mousedown', onDown);
+        opTrack.addEventListener('touchstart', onDown, { passive: true });
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('mouseup', onUp);
+        window.addEventListener('touchend', onUp);
+    }
 }
 
 // ─── 설정 드로어 ───
@@ -1157,6 +1206,13 @@ function applyTheme() {
         el.style.setProperty('background', lightTheme ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.1)', 'important');
         el.style.setProperty('border-color', lightTheme ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)', 'important');
     });
+    // 투명도 슬라이더 fill 색 + 너비
+    const opFill = bar.querySelector('.obs-opacity-fill');
+    if (opFill) {
+        opFill.style.setProperty('background', t.accent, 'important');
+        const pct = ((s.opacity || 92) - 30) / 70 * 100;
+        opFill.style.width = pct + '%';
+    }
 }
 function applyOpacity() { applyTheme(); }
 

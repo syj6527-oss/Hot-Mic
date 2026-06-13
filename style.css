@@ -257,6 +257,35 @@
     transition: max-width 0.3s cubic-bezier(0.16,1,0.3,1);
 }
 
+/* 패널 상단 투명도 슬라이더 트랙 */
+.obs-opacity-track {
+    position: relative;
+    height: 8px;
+    flex-shrink: 0;
+    cursor: ew-resize;
+    touch-action: none;
+    background: rgba(255,255,255,0.08);
+    border-radius: 12px 12px 0 0;
+    overflow: hidden;
+}
+.obs-opacity-track::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0; right: 0;
+    height: 2px;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.12);
+}
+.obs-opacity-fill {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 92%;
+    background: rgba(255,60,60,0.55);
+    transition: width 0.05s linear;
+    z-index: 1;
+}
+
 /* 전체 펼치기 */
 #observer-bar.obs-fs-bar.state-panel {
     bottom: 0;
