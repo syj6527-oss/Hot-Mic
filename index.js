@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v1.6.1-debug ───
+// ─── 🎤 Hot Mic v1.6.2-debug ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -669,17 +669,22 @@ function bindEvents() {
 
 // ─── 설정 드로어 ───
 function injectSettings() {
+    hotmicDebug('  · injectSettings: container 찾는 중');
     const container = document.getElementById('extensions_settings2')
         || document.getElementById('extensions_settings');
-    if (!container || document.getElementById('hotmic-settings')) return;
+    if (!container) { hotmicDebug('  · container 없음 → return (정상)'); return; }
+    if (document.getElementById('hotmic-settings')) { hotmicDebug('  · 이미 있음 → return'); return; }
 
+    hotmicDebug('  · settings/profiles 읽는 중');
     const settings = getSettings();
     const profiles = getConnectionProfiles();
+    hotmicDebug('  · profiles 개수=' + (profiles?.length ?? 'null'));
 
     const profileOptions = ['<option value="">기본 (현재 연결)</option>']
-        .concat(profiles.map(p =>
+        .concat((profiles || []).map(p =>
             `<option value="${escHtml(p.name)}" ${settings.profile === p.name ? 'selected' : ''}>${escHtml(p.name)}</option>`
         )).join('');
+    hotmicDebug('  · profileOptions 완성');
 
     const html = `
 <div id="hotmic-settings" class="extension_settings">
