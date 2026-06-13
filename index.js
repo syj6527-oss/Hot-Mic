@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.6.0 ───
+// ─── 🎤 Hot Mic v2.7.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -600,7 +600,6 @@ function injectUI() {
         <div class="obs-panel-header">
             <span class="obs-panel-title">🎤 HOT MIC</span>
             <div class="obs-panel-controls">
-                <button class="obs-btn-small obs-settings" title="설정">⚙️</button>
                 <button class="obs-btn-small obs-regen" title="재생성">↺</button>
                 <button class="obs-btn-small obs-fullscreen" title="전체 펼치기">⛶</button>
                 <button class="obs-btn-small obs-collapse" title="접기">▼</button>
@@ -616,20 +615,6 @@ function injectUI() {
 
     // body에 직접 삽입한다.
     document.body.insertAdjacentHTML('beforeend', html);
-
-    // 설정 모달은 bar 밖, body 직속으로 별도 삽입 (bar의 fixed/pointer-events 제약을 안 받게)
-    if (!document.getElementById('observer-settings-modal')) {
-        document.body.insertAdjacentHTML('beforeend', `
-<div id="observer-settings-modal" class="obs-hidden">
-    <div class="obs-settings-box">
-        <div class="obs-settings-head">
-            <span>🎤 Hot Mic 설정</span>
-            <button class="obs-settings-close" title="닫기">✕</button>
-        </div>
-        <div class="obs-settings-body"></div>
-    </div>
-</div>`);
-    }
 
     if (settings.fullscreen) {
         document.getElementById('observer-panel')?.classList.add('obs-fs');
@@ -763,22 +748,6 @@ function bindEvents() {
             btn.title = on ? '원래대로' : '전체 펼치기';
         })
     );
-
-    // ⚙️ 설정 모달 열기
-    bar.querySelectorAll('.obs-settings').forEach(btn =>
-        btn.addEventListener('click', (e) => { e.stopPropagation(); openSettingsModal(); })
-    );
-
-    // 설정 모달 닫기 (X 버튼 + 배경 클릭)
-    const modal = document.getElementById('observer-settings-modal');
-    if (modal) {
-        modal.querySelector('.obs-settings-close')?.addEventListener('click', (e) => {
-            e.stopPropagation(); closeSettingsModal();
-        });
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) closeSettingsModal(); // 배경 탭하면 닫기
-        });
-    }
 }
 
 // ─── 설정 드로어 ───
@@ -800,7 +769,10 @@ function injectSettings() {
         )).join('');
     hotmicDebug('  · profileOptions 완성');
 
-    hotmicDebug('  · html 생성 시작');
+    const themeOptions = Object.entries(HOTMIC_THEMES)
+        .map(([k, v]) => `<option value="${k}" ${settings.theme === k ? 'selected' : ''}>${v.name}</option>`)
+        .join('');
+
     const html = `
 <div id="hotmic-settings" class="extension_settings">
     <div class="inline-drawer">
@@ -815,17 +787,59 @@ function injectSettings() {
             </label>
 
             <label for="hotmic-profile">해설 생성 연결 프로필</label>
-            <select id="hotmic-profile" class="text_pole">
-                ${profileOptions}
+            <select id="hotmic-profile" class="text_pole">${profileOptions}</select>
+            <small class="notes">메인 RP와 다른 모델로 해설을 뽑고 싶을 때 선택. (예: RP는 GLM, 해설은 Claude)</small>
+
+            <label for="hotmic-language" id="hotmic-lang-label" style="margin-top:10px;">출력 언어</label>
+            <select id="hotmic-language" class="text_pole">
+                <option value="ko" ${settings.language === 'ko' ? 'selected' : ''}>한국어</option>
+                <option value="en" ${settings.language === 'en' ? 'selected' : ''}>English</option>
             </select>
-            <small class="notes">메인 RP와 다른 모델로 해설을 뽑고 싶을 때 선택. (예: RP는 GLM, 해설은 Claude)<br><br>나레이션 모드·분량·구성 등 나머지 설정은 자막바의 ⚙️ 버튼에서 조절하세요.</small>
+
+            <label for="hotmic-theme" style="margin-top:10px;">색상 테마</label>
+            <select id="hotmic-theme" class="text_pole">${themeOptions}</select>
+
+            <label for="hotmic-mode" style="margin-top:10px;">나레이션 모드</label>
+            <select id="hotmic-mode" class="text_pole">
+                <option value="docu"    ${settings.mode === 'docu'    ? 'selected' : ''}>🎬 다큐멘터리</option>
+                <option value="sports"  ${settings.mode === 'sports'  ? 'selected' : ''}>🏟️ 스포츠 중계</option>
+                <option value="variety" ${settings.mode === 'variety' ? 'selected' : ''}>📺 예능</option>
+            </select>
+
+            <label for="hotmic-context" style="margin-top:10px;">맥락 범위</label>
+            <select id="hotmic-context" class="text_pole">
+                <option value="current" ${settings.context === 'current' ? 'selected' : ''}>현재 메시지만</option>
+                <option value="recent5" ${settings.context === 'recent5' ? 'selected' : ''}>최근 5턴</option>
+                <option value="all"     ${settings.context === 'all'     ? 'selected' : ''}>전체 대화</option>
+            </select>
+
+            <label for="hotmic-length" style="margin-top:10px;">해설 분량</label>
+            <select id="hotmic-length" class="text_pole">
+                <option value="short"  ${settings.length === 'short'  ? 'selected' : ''}>간결 (짧고 강하게)</option>
+                <option value="normal" ${settings.length === 'normal' ? 'selected' : ''}>보통</option>
+                <option value="long"   ${settings.length === 'long'   ? 'selected' : ''}>수다 (풍부하게)</option>
+                <option value="max"    ${settings.length === 'max'    ? 'selected' : ''}>초장문 (대용량)</option>
+            </select>
+
+            <label for="hotmic-preset" style="margin-top:10px;">구성</label>
+            <select id="hotmic-preset" class="text_pole">
+                <option value="all"       ${settings.preset === 'all'       ? 'selected' : ''}>전체 (속마음+제작진+팩트+인터뷰)</option>
+                <option value="fact"      ${settings.preset === 'fact'      ? 'selected' : ''}>팩트체크만</option>
+                <option value="interview" ${settings.preset === 'interview' ? 'selected' : ''}>인터뷰만</option>
+                <option value="broadcast" ${settings.preset === 'broadcast' ? 'selected' : ''}>속마음 + 제작진/중계만</option>
+            </select>
+
+            <label for="hotmic-fxfreq" style="margin-top:12px;">이모지 빈도: <span id="hotmic-fx-val">${settings.fxFrequency}</span>%</label>
+            <input type="range" id="hotmic-fxfreq" min="0" max="100" step="10" value="${settings.fxFrequency}" style="width:100%;">
+
+            <label for="hotmic-opacity" style="margin-top:10px;">불투명도: <span id="hotmic-op-val">${settings.opacity}</span>%</label>
+            <input type="range" id="hotmic-opacity" min="30" max="100" step="5" value="${settings.opacity}" style="width:100%;">
         </div>
     </div>
 </div>`;
 
-    hotmicDebug('  · html 완성, 삽입 직전');
     container.insertAdjacentHTML('beforeend', html);
-    hotmicDebug('  · 삽입 완료, 바인딩 시작');
+
     const bind = (id, key) => {
         document.getElementById(id)?.addEventListener('change', (e) => {
             const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -836,109 +850,43 @@ function injectSettings() {
     };
     bind('hotmic-enabled', 'enabled');
     bind('hotmic-profile', 'profile');
+    bind('hotmic-language', 'language');
+    bind('hotmic-mode', 'mode');
+    bind('hotmic-context', 'context');
+    bind('hotmic-length', 'length');
+    bind('hotmic-preset', 'preset');
 
-    // 활성화 토글 시 자막바 표시/숨김
-    document.getElementById('hotmic-enabled')?.addEventListener('change', applyEnabledState);
-    applyEnabledState();
-}
-
-// ─── 설정 모달 (자막바 ⚙️에서 열림) ───
-function buildSettingsModal() {
-    const box = document.querySelector('#observer-settings-modal .obs-settings-body');
-    if (!box) return;
-    const s = getSettings();
-    const themeOptions = Object.entries(HOTMIC_THEMES)
-        .map(([k, v]) => `<option value="${k}" ${s.theme === k ? 'selected' : ''}>${v.name}</option>`)
-        .join('');
-    box.innerHTML = `
-        <label class="obs-set-label" id="hotmic-lang-label">출력 언어</label>
-        <select id="m-language" class="obs-set-select">
-            <option value="ko" ${s.language === 'ko' ? 'selected' : ''}>한국어</option>
-            <option value="en" ${s.language === 'en' ? 'selected' : ''}>English</option>
-        </select>
-
-        <label class="obs-set-label">색상 테마</label>
-        <select id="m-theme" class="obs-set-select">
-            ${themeOptions}
-        </select>
-
-        <label class="obs-set-label">나레이션 모드</label>
-        <select id="m-mode" class="obs-set-select">
-            <option value="docu"    ${s.mode === 'docu'    ? 'selected' : ''}>🎬 다큐멘터리</option>
-            <option value="sports"  ${s.mode === 'sports'  ? 'selected' : ''}>🏟️ 스포츠 중계</option>
-            <option value="variety" ${s.mode === 'variety' ? 'selected' : ''}>📺 예능</option>
-        </select>
-
-        <label class="obs-set-label">맥락 범위</label>
-        <select id="m-context" class="obs-set-select">
-            <option value="current" ${s.context === 'current' ? 'selected' : ''}>현재 메시지만</option>
-            <option value="recent5" ${s.context === 'recent5' ? 'selected' : ''}>최근 5턴</option>
-            <option value="all"     ${s.context === 'all'     ? 'selected' : ''}>전체 대화</option>
-        </select>
-
-        <label class="obs-set-label">해설 분량</label>
-        <select id="m-length" class="obs-set-select">
-            <option value="short"  ${s.length === 'short'  ? 'selected' : ''}>간결 (짧고 강하게)</option>
-            <option value="normal" ${s.length === 'normal' ? 'selected' : ''}>보통</option>
-            <option value="long"   ${s.length === 'long'   ? 'selected' : ''}>수다 (풍부하게)</option>
-            <option value="max"    ${s.length === 'max'    ? 'selected' : ''}>초장문 (대용량)</option>
-        </select>
-
-        <label class="obs-set-label">구성</label>
-        <select id="m-preset" class="obs-set-select">
-            <option value="all"       ${s.preset === 'all'       ? 'selected' : ''}>전체 (속마음+제작진+팩트+인터뷰)</option>
-            <option value="fact"      ${s.preset === 'fact'      ? 'selected' : ''}>팩트체크만</option>
-            <option value="interview" ${s.preset === 'interview' ? 'selected' : ''}>인터뷰만</option>
-            <option value="broadcast" ${s.preset === 'broadcast' ? 'selected' : ''}>속마음 + 제작진/중계만</option>
-        </select>
-
-        <label class="obs-set-label" style="margin-top:10px;">이모지 빈도: <span id="m-fx-val">${s.fxFrequency}</span>%</label>
-        <input type="range" id="m-fxfreq" min="0" max="100" step="10" value="${s.fxFrequency}" style="width:100%;">
-
-        <label class="obs-set-label" style="margin-top:10px;">불투명도: <span id="m-op-val">${s.opacity}</span>%</label>
-        <input type="range" id="m-opacity" min="30" max="100" step="5" value="${s.opacity}" style="width:100%;">
-    `;
-
-    const bindM = (id, key) => {
-        document.getElementById(id)?.addEventListener('change', (e) => {
-            getSettings()[key] = e.target.value;
-            saveSettingsDebounced();
-            syncControls();
-        });
-    };
-    bindM('m-language', 'language');
-    bindM('m-mode', 'mode');
-    bindM('m-context', 'context');
-    bindM('m-length', 'length');
-    bindM('m-preset', 'preset');
-
-    document.getElementById('m-theme')?.addEventListener('change', (e) => {
+    document.getElementById('hotmic-theme')?.addEventListener('change', (e) => {
         getSettings().theme = e.target.value;
         applyTheme();
         saveSettingsDebounced();
     });
 
-    document.getElementById('m-fxfreq')?.addEventListener('input', (e) => {
+    document.getElementById('hotmic-fxfreq')?.addEventListener('input', (e) => {
         const v = parseInt(e.target.value, 10);
         getSettings().fxFrequency = v;
-        const lbl = document.getElementById('m-fx-val');
+        const lbl = document.getElementById('hotmic-fx-val');
         if (lbl) lbl.textContent = v;
         saveSettingsDebounced();
     });
 
-    document.getElementById('m-opacity')?.addEventListener('input', (e) => {
+    document.getElementById('hotmic-opacity')?.addEventListener('input', (e) => {
         const v = parseInt(e.target.value, 10);
         getSettings().opacity = v;
-        const lbl = document.getElementById('m-op-val');
+        const lbl = document.getElementById('hotmic-op-val');
         if (lbl) lbl.textContent = v;
-        applyOpacity();
+        applyTheme();
         saveSettingsDebounced();
     });
+
+    document.getElementById('hotmic-enabled')?.addEventListener('change', applyEnabledState);
+    applyEnabledState();
 
     // 🥚 이스터에그: "출력 언어" 라벨 1.5초 내 5번 탭 → 디버그
     const langLabel = document.getElementById('hotmic-lang-label');
     if (langLabel) {
         let taps = [];
+        langLabel.style.cursor = 'default';
         langLabel.addEventListener('click', () => {
             const now = Date.now();
             taps = taps.filter(t => now - t < 1500);
@@ -953,14 +901,6 @@ function buildSettingsModal() {
             }
         });
     }
-}
-
-function openSettingsModal() {
-    buildSettingsModal();
-    document.getElementById('observer-settings-modal')?.classList.remove('obs-hidden');
-}
-function closeSettingsModal() {
-    document.getElementById('observer-settings-modal')?.classList.add('obs-hidden');
 }
 
 
@@ -1002,18 +942,16 @@ function applyTheme() {
 }
 function applyOpacity() { applyTheme(); }
 
-// 설정 값 동기화 (드로어 + 모달)
+// 설정 값 동기화
 function syncControls() {
     const s = getSettings();
     const set = (sel, val) => { const el = document.querySelector(sel); if (el && el.value !== val) el.value = val; };
-    // 모달 (열려있을 때만 존재)
-    set('#m-mode', s.mode);
-    set('#m-context', s.context);
-    set('#m-language', s.language);
-    set('#m-length', s.length);
-    set('#m-preset', s.preset);
-    set('#m-theme', s.theme);
-    // 드로어
+    set('#hotmic-mode', s.mode);
+    set('#hotmic-context', s.context);
+    set('#hotmic-language', s.language);
+    set('#hotmic-length', s.length);
+    set('#hotmic-preset', s.preset);
+    set('#hotmic-theme', s.theme);
     set('#hotmic-profile', s.profile);
     const en = document.getElementById('hotmic-enabled');
     if (en) en.checked = s.enabled;
