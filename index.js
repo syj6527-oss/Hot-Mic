@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.25.0 ───
+// ─── 🎤 Hot Mic v2.26.0 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,7 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
-const HOTMIC_VERSION = '2.25.0';
+const HOTMIC_VERSION = '2.26.0';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
@@ -42,6 +42,7 @@ const THEME_ALIAS = { midnight: 'blue', sepia: 'parchment' };
 
 // 디버그는 저장하지 않는 휘발성 (이스터에그로 켠 세션에만 유효, 새로고침 시 자동 off)
 let HOTMIC_DEBUG = false;
+let HOTMIC_LAST = null; // 마지막 생성 진단 정보 (모드/서브/프롬프트/응답/에러)
 
 function getSettings() {
     if (!extension_settings[EXT_NAME]) {
@@ -499,6 +500,18 @@ ${chatHistory}
 
 위 마지막 캐릭터 응답을 해설해주세요. JSON만 출력하세요.`;
 
+    // 디버그 진단용 기록 (생성 시작)
+    HOTMIC_LAST = {
+        time: new Date().toLocaleTimeString(),
+        mode: settings.mode,
+        subLabel: subLabel,
+        length: settings.length,
+        context: settings.context,
+        promptLen: fullPrompt.length,
+        promptHead: fullPrompt.slice(0, 200),
+        raw: null, error: null,
+    };
+
     let raw;
 
     // 프로필이 지정돼 있고 ConnectionManagerRequestService가 있으면 → 격리 호출
@@ -543,6 +556,7 @@ ${chatHistory}
     const clean = String(raw || '')
         .replace(/```json|```/g, '')
         .trim();
+    if (HOTMIC_LAST) HOTMIC_LAST.raw = clean.slice(0, 500);
 
     // JSON 본문만 안전 추출 (모델이 앞뒤로 설명 붙였을 경우 대비)
     const firstBrace = clean.indexOf('{');
@@ -847,6 +861,16 @@ async function runGeneration() {
     const settings = getSettings();
     if (!settings.enabled) return;
 
+    // ST가 메인 응답을 생성 중이면 끼어들지 않는다 (생성 큐 충돌·데이터 꼬임 방지)
+    try {
+        const ctx = getContext();
+        if (ctx?.is_send_press || ctx?.isGenerating ||
+            document.getElementById('mes_stop')?.style.display === 'block') {
+            hotmicDebug('메인 생성 중 → Hot Mic 생성 보류');
+            return;
+        }
+    } catch (e) {}
+
     const collected = collectData();
     if (!collected) return;
 
@@ -880,6 +904,7 @@ async function runGeneration() {
         renderCommentary(commentary);
     } catch (err) {
         console.error('[Hot Mic] 해설 생성 실패:', err);
+        if (HOTMIC_LAST) HOTMIC_LAST.error = String(err?.message || err);
         updateTickerPreview('⚠ 생성 실패');
         const body = document.querySelector('#observer-panel .obs-panel-body');
         if (body) body.innerHTML = '<div class="obs-empty">⚠ 해설 생성에 실패했습니다</div>';
@@ -1665,6 +1690,16 @@ function showDebugReport() {
     hotmicDebug(`bar: top=${Math.round(r.top)} left=${Math.round(r.left)} size=${Math.round(r.width)}x${Math.round(r.height)}`);
     hotmicDebug(`화면: winH=${window.innerHeight} winW=${window.innerWidth}`);
     hotmicDebug(`상태: ${getSettings().state} / 모드: ${getSettings().mode} / 활성: ${getSettings().enabled}`);
+    // 마지막 생성 진단
+    if (HOTMIC_LAST) {
+        hotmicDebug('--- 마지막 생성 ---');
+        hotmicDebug(`시각:${HOTMIC_LAST.time} 모드:${HOTMIC_LAST.mode} 서브:${HOTMIC_LAST.subLabel || '-'}`);
+        hotmicDebug(`분량:${HOTMIC_LAST.length} 맥락:${HOTMIC_LAST.context} 프롬프트:${HOTMIC_LAST.promptLen}자`);
+        if (HOTMIC_LAST.error) hotmicDebug(`❌ 에러: ${HOTMIC_LAST.error}`, true);
+        else hotmicDebug(`응답(앞부분): ${(HOTMIC_LAST.raw || '없음').slice(0, 180)}`);
+    } else {
+        hotmicDebug('마지막 생성 기록 없음 (아직 생성 안 함)');
+    }
     if (r.top > window.innerHeight || r.top < -r.height) {
         hotmicDebug('⚠ bar 화면 밖 → 교정 시도', true);
         try { enforcePosition(); } catch (e) {}
