@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.28.0 ───
+// ─── 🎤 Hot Mic v2.28.1 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,7 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
-const HOTMIC_VERSION = '2.28.0';
+const HOTMIC_VERSION = '2.28.1';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
@@ -1793,19 +1793,29 @@ function renderArchiveList() {
         if (b.data.director)  blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">${escHtml(dl)}</span>${escHtml(b.data.director)}</div>`);
         if (b.data.fact)      blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">팩트체크</span>${escHtml(b.data.fact)}</div>`);
         if (b.data.interview) blk.push(`<div class="hma-blk"><span class="hma-blk-lbl">마이크에 잡힘</span>${escHtml(b.data.interview)}</div>`);
+        // 접힌 상태 프리뷰 (ticker와 동일한 preview 우선, 없으면 첫 본문 일부)
+        const previewSrc = b.data.preview || b.data.director || b.data.inner || b.data.fact || b.data.interview || '(내용 없음)';
         return `
         <div class="hma-card" data-id="${b.id}">
             <div class="hma-card-top">
                 <span class="hma-badge">${escHtml(b.modeLabel)}${b.subLabel ? ' · ' + escHtml(b.subLabel) : ''}</span>
                 <span class="hma-time">${escHtml(b.time)}</span>
                 <span class="hma-card-btns">
+                    <button class="hma-toggle" data-id="${b.id}" title="펼치기">열기 ▾</button>
                     <button class="hma-copy" data-id="${b.id}" title="복사">⧉</button>
                     <button class="hma-del" data-id="${b.id}" title="삭제">🗑</button>
                 </span>
             </div>
+            <div class="hma-preview">${escHtml(previewSrc)}</div>
             <div class="hma-card-body">${blk.join('')}</div>
         </div>`;
     }).join('');
+    list.querySelectorAll('.hma-toggle').forEach(btn => btn.addEventListener('click', () => {
+        const card = btn.closest('.hma-card');
+        const open = card.classList.toggle('expanded');
+        btn.textContent = open ? '접기 ▴' : '열기 ▾';
+        btn.title = open ? '접기' : '펼치기';
+    }));
     list.querySelectorAll('.hma-del').forEach(btn => btn.addEventListener('click', () => deleteBookmark(btn.dataset.id)));
     list.querySelectorAll('.hma-copy').forEach(btn => btn.addEventListener('click', () => copyBookmark(btn.dataset.id)));
 }

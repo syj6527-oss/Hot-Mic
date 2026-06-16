@@ -674,6 +674,7 @@
     width: 100%;
     max-width: 560px;
     max-height: 82vh;
+    max-height: calc(100dvh - 32px);
     display: flex;
     flex-direction: column;
     background: var(--hm-panel, #232323);
@@ -722,7 +723,11 @@
 #hotmic-archive .hma-close:hover { opacity: 1; }
 
 #hotmic-archive .hma-list {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
     padding: 12px;
     display: flex;
     flex-direction: column;
@@ -771,7 +776,33 @@
 #hotmic-archive .hma-copy:hover { opacity: 1; background: var(--hm-line, rgba(255,255,255,0.15)); }
 #hotmic-archive .hma-del:hover { opacity: 1; background: rgba(200,76,76,0.25); }
 
-#hotmic-archive .hma-card-body { display: flex; flex-direction: column; gap: 6px; }
+#hotmic-archive .hma-preview {
+    font-size: 12.5px;
+    line-height: 1.5;
+    opacity: 0.8;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+}
+#hotmic-archive .hma-card.expanded .hma-preview { display: none; }
+#hotmic-archive .hma-toggle {
+    background: none;
+    border: 1px solid var(--hm-line, rgba(255,255,255,0.15));
+    color: var(--hm-text, #EAEAEA);
+    opacity: 0.7;
+    font-size: 10.5px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+#hotmic-archive .hma-toggle:hover { opacity: 1; border-color: var(--hm-accent, #C84C4C); color: var(--hm-accent, #C84C4C); }
+
+#hotmic-archive .hma-card-body { display: none; flex-direction: column; gap: 6px; margin-top: 7px; }
+#hotmic-archive .hma-card.expanded .hma-card-body { display: flex; }
 #hotmic-archive .hma-blk {
     font-size: 12.5px;
     line-height: 1.55;
