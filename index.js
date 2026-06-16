@@ -1,4 +1,4 @@
-// ─── 🎤 Hot Mic v2.28.3 ───
+// ─── 🎤 Hot Mic v2.28.4 ───
 // 캐릭터 몰래 보는 감독판 코멘터리
 // RP에 개입하지 않음. 해설은 기억되지 않음. 단방향.
 
@@ -6,7 +6,7 @@ import { getContext, extension_settings } from '../../../extensions.js';
 import { event_types, eventSource, saveSettingsDebounced } from '../../../../script.js';
 
 const EXT_NAME = 'hot-mic';
-const HOTMIC_VERSION = '2.28.3';
+const HOTMIC_VERSION = '2.28.4';
 
 // ─── 기본 설정 ───
 const DEFAULT_SETTINGS = {
